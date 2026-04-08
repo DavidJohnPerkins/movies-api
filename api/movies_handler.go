@@ -3,6 +3,7 @@ package api
 import (
 	"dperkins/movies-api/store"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -98,21 +99,23 @@ func (mr *CreateMovieRequest) Bind(r *http.Request) error {
 }
 
 func (s *Server) handleCreateMovie(w http.ResponseWriter, r *http.Request) {
-	data := &CreateMovieRequest{}
-	if err := render.Bind(r, data); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		render.Render(w, r, ErrBadRequest)
 		return
 	}
+	jsonString := string(body)
+	err = s.store.Create(r.Context(), jsonString)
 
-	createMovieParams := store.CreateMovieParams{
-		ID:          data.ID,
-		Title:       data.Title,
-		Director:    data.Director,
-		ReleaseDate: data.ReleaseDate,
-		TicketPrice: data.TicketPrice,
-	}
+	// createMovieParams := store.CreateMovieParams{
+	// 	ID:          data.ID,
+	// 	Title:       data.Title,
+	// 	Director:    data.Director,
+	// 	ReleaseDate: data.ReleaseDate,
+	// 	TicketPrice: data.TicketPrice,
+	// }
 
-	err := s.store.Create(r.Context(), createMovieParams)
+	// err := s.store.Create(r.Context(), createMovieParams)
 	if err != nil {
 		var dupKeyError *store.DuplicateKeyError
 		if errors.As(err, &dupKeyError) {

@@ -53,16 +53,26 @@ func (s *SqlServerMoviesStore) GetAll(ctx context.Context) ([]Movie, error) {
 	defer s.close()
 
 	var movies []Movie
-	if err := s.dbx.SelectContext(
-		ctx,
-		&movies,
-		`SELECT
-			Id, Title, Director, ReleaseDate, TicketPrice, CreatedAt, UpdatedAt 
-			FROM dbo.movies`); err != nil {
+	r, err := s.dbx.QueryxContext(
+		ctx, `
+		EXEC dbo.r_movie;
+	`)
+
+	if err != nil {
 		return nil, err
 	}
-	return movies, nil
+	defer r.Close()
 
+	for r.Next() {
+		var m Movie
+		if err := r.StructScan(&m); err != nil {
+			log.Print("here:", err)
+			return nil, err
+		}
+		movies = append(movies, m)
+	}
+
+	return movies, nil
 }
 
 func (s *SqlServerMoviesStore) GetByID(ctx context.Context, id uuid.UUID) (Movie, error) {
@@ -73,54 +83,82 @@ func (s *SqlServerMoviesStore) GetByID(ctx context.Context, id uuid.UUID) (Movie
 	defer s.close()
 
 	var movie Movie
-	if err := s.dbx.GetContext(
-		ctx,
-		&movie,
-		`SELECT Id, Title, Director, ReleaseDate, TicketPrice, CreatedAt, UpdatedAt
-		FROM dbo.movies
-		WHERE Id = @id`,
-		sql.Named("id", id)); err != nil {
-		if err != sql.ErrNoRows {
+	r, err := s.dbx.QueryxContext(
+		ctx, `
+		EXEC dbo.r_movie_by_id @id=@id;
+	`, sql.Named("id", id))
+	if err != nil {
+		return Movie{}, err
+	}
+	defer r.Close()
+
+	if r.Next() {
+		if err := r.StructScan(&movie); err != nil {
 			return Movie{}, err
 		}
-		return Movie{}, &RecordNotFoundError{}
+	} else {
+		return Movie{}, sql.ErrNoRows
 	}
 
 	return movie, nil
 }
 
-func (s *SqlServerMoviesStore) Create(ctx context.Context, createMovieParams CreateMovieParams) error {
+func (s *SqlServerMoviesStore) Create(ctx context.Context, jsonBody string) error {
 	err := s.connect(ctx)
 	if err != nil {
 		return err
 	}
 	defer s.close()
 
-	movie := Movie{
-		ID:          createMovieParams.ID,
-		Title:       createMovieParams.Title,
-		Director:    createMovieParams.Director,
-		ReleaseDate: createMovieParams.ReleaseDate,
-		TicketPrice: createMovieParams.TicketPrice,
-		CreatedAt:   time.Now().UTC(),
-		UpdatedAt:   time.Now().UTC(),
-	}
-
-	if _, err := s.dbx.NamedExecContext(
+	_, err = s.dbx.ExecContext(
 		ctx,
-		`INSERT INTO dbo.movies
-			(Id, Title, Director, ReleaseDate, TicketPrice, CreatedAt, UpdatedAt)
-		VALUES
-			(:Id, :Title, :Director, :ReleaseDate, :TicketPrice, :CreatedAt, :UpdatedAt)`,
-		movie); err != nil {
-		if strings.Contains(err.Error(), "Cannot insert duplicate key") {
-			return &DuplicateKeyError{ID: createMovieParams.ID}
+		`EXEC dbo.c_movie @json = @json`,
+		sql.Named("json", jsonBody),
+	)
+	log.Printf("err: %v", err)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			log.Printf("err: %v", err)
+			return &DuplicateKeyError{err}
 		}
 		return err
 	}
-
 	return nil
 }
+
+// func (s *SqlServerMoviesStore) Create(ctx context.Context, createMovieParams CreateMovieParams) error {
+// 	err := s.connect(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer s.close()
+
+// 	movie := Movie{
+// 		ID:          createMovieParams.ID,
+// 		Title:       createMovieParams.Title,
+// 		Director:    createMovieParams.Director,
+// 		ReleaseDate: createMovieParams.ReleaseDate,
+// 		TicketPrice: createMovieParams.TicketPrice,
+// 		CreatedAt:   time.Now().UTC(),
+// 		UpdatedAt:   time.Now().UTC(),
+// 	}
+// 	log.Printf("movie: %v", movie)
+
+// 	if _, err := s.dbx.NamedExecContext(
+// 		ctx,
+// 		`INSERT INTO dbo.movies
+// 			(Id, Title, Director, ReleaseDate, TicketPrice, CreatedAt, UpdatedAt)
+// 		VALUES
+// 			(:Id, :Title, :Director, :ReleaseDate, :TicketPrice, :CreatedAt, :UpdatedAt)`,
+// 		movie); err != nil {
+// 		if strings.Contains(err.Error(), "Cannot insert duplicate key") {
+// 			return &DuplicateKeyError{ID: createMovieParams.ID}
+// 		}
+// 		return err
+// 	}
+
+// 	return nil
+// }
 
 func (s *SqlServerMoviesStore) Update(ctx context.Context, id uuid.UUID, updateMovieParams UpdateMovieParams) error {
 	err := s.connect(ctx)
@@ -137,7 +175,7 @@ func (s *SqlServerMoviesStore) Update(ctx context.Context, id uuid.UUID, updateM
 		TicketPrice: updateMovieParams.TicketPrice,
 		UpdatedAt:   time.Now().UTC(),
 	}
-	log.Printf("movie: %v", movie)
+
 	if _, err := s.dbx.NamedExecContext(
 		ctx,
 		`UPDATE dbo.movies

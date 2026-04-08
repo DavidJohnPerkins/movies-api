@@ -2,12 +2,10 @@ package store
 
 import (
 	"fmt"
-
-	"github.com/google/uuid"
 )
 
 type DuplicateKeyError struct {
-	ID uuid.UUID
+	ID error
 }
 
 type RecordNotFoundError struct{}
