@@ -1,24 +1,26 @@
-declare @j NVARCHAR(max)='
-{
-    "id":"98268a96-a6ac-444f-852a-c6472129aa40",
-    "title": "The Green Martian",
-    "director": "Matt Damon",
-    "release_date": "2001-07-01T01:01:01Z",
-    "ticket_price": 31.5,
-    "created_at": "2026-04-07T20:40:39.649641Z",
-    "updated_at": "2026-04-07T20:40:39.649641Z"
-}'
+IF EXISTS (
+SELECT *
+	FROM INFORMATION_SCHEMA.ROUTINES
+WHERE SPECIFIC_SCHEMA = N'dbo'
+	AND SPECIFIC_NAME = N'u_movie'
+)
+DROP PROCEDURE dbo.u_movie
+GO
+CREATE PROCEDURE dbo.u_movie
+    @json NVARCHAR(MAX)
+AS
+BEGIN
     DECLARE @Id UNIQUEIDENTIFIER,
     		@Id_string varchar(36)
 
     SELECT @Id = Id
-    FROM OPENJSON(@j)
+    FROM OPENJSON(@json)
     WITH (
         Id UNIQUEIDENTIFIER '$.id'
     );
 
 	SET @Id_string = CONVERT(varchar(36), @Id)
-	print @Id_string
+
 	BEGIN TRY
 		WITH w_values AS (
 			SELECT 
@@ -28,7 +30,7 @@ declare @j NVARCHAR(max)='
 				ReleaseDate,
 				TicketPrice,
 				GETDATE() AS UpdatedAt
-			FROM OPENJSON(@j)
+			FROM OPENJSON(@json)
 			WITH (
 				Id UNIQUEIDENTIFIER '$.id',
 				Title NVARCHAR(200) '$.title',
@@ -54,5 +56,4 @@ declare @j NVARCHAR(max)='
 	BEGIN CATCH
   		RAISERROR ('Update for key: %s - operation failed', 16, 1, @Id_string)
 	END CATCH
-
-select * from dbo.movies
+END

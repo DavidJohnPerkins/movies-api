@@ -8,7 +8,9 @@ type DuplicateKeyError struct {
 	ID error
 }
 
-type RecordNotFoundError struct{}
+type RecordNotFoundError struct {
+	ID error
+}
 
 func (e *DuplicateKeyError) Error() string {
 	return fmt.Sprintf("Duplicate movie id: %v", e.ID)

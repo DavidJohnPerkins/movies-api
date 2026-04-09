@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -66,7 +65,6 @@ func (s *SqlServerMoviesStore) GetAll(ctx context.Context) ([]Movie, error) {
 	for r.Next() {
 		var m Movie
 		if err := r.StructScan(&m); err != nil {
-			log.Print("here:", err)
 			return nil, err
 		}
 		movies = append(movies, m)
@@ -115,10 +113,8 @@ func (s *SqlServerMoviesStore) Create(ctx context.Context, jsonBody string) erro
 		`EXEC dbo.c_movie @json = @json`,
 		sql.Named("json", jsonBody),
 	)
-	log.Printf("err: %v", err)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
-			log.Printf("err: %v", err)
 			return &DuplicateKeyError{err}
 		}
 		return err
@@ -160,47 +156,72 @@ func (s *SqlServerMoviesStore) Create(ctx context.Context, jsonBody string) erro
 // 	return nil
 // }
 
-func (s *SqlServerMoviesStore) Update(ctx context.Context, id uuid.UUID, updateMovieParams UpdateMovieParams) error {
+func (s *SqlServerMoviesStore) Update(ctx context.Context, jsonBody string) error {
 	err := s.connect(ctx)
 	if err != nil {
 		return err
 	}
 	defer s.close()
 
-	movie := Movie{
-		ID:          id,
-		Title:       updateMovieParams.Title,
-		Director:    updateMovieParams.Director,
-		ReleaseDate: updateMovieParams.ReleaseDate,
-		TicketPrice: updateMovieParams.TicketPrice,
-		UpdatedAt:   time.Now().UTC(),
-	}
-
-	if _, err := s.dbx.NamedExecContext(
+	_, err = s.dbx.ExecContext(
 		ctx,
-		`UPDATE dbo.movies
-		SET Title = :Title, Director = :Director, ReleaseDate = :ReleaseDate, TicketPrice = :TicketPrice, UpdatedAt = :UpdatedAt
-		WHERE Id = :Id`,
-		movie); err != nil {
+		`EXEC dbo.u_movie @json = @json`,
+		sql.Named("json", jsonBody),
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "operation failed") {
+			return &RecordNotFoundError{err}
+		}
 		return err
 	}
-
 	return nil
 }
 
-func (s *SqlServerMoviesStore) Delete(ctx context.Context, id uuid.UUID) error {
+// func (s *SqlServerMoviesStore) Update(ctx context.Context, id uuid.UUID, updateMovieParams UpdateMovieParams) error {
+// 	err := s.connect(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer s.close()
+
+// 	movie := Movie{
+// 		ID:          id,
+// 		Title:       updateMovieParams.Title,
+// 		Director:    updateMovieParams.Director,
+// 		ReleaseDate: updateMovieParams.ReleaseDate,
+// 		TicketPrice: updateMovieParams.TicketPrice,
+// 		UpdatedAt:   time.Now().UTC(),
+// 	}
+
+// 	if _, err := s.dbx.NamedExecContext(
+// 		ctx,
+// 		`UPDATE dbo.movies
+// 		SET Title = :Title, Director = :Director, ReleaseDate = :ReleaseDate, TicketPrice = :TicketPrice, UpdatedAt = :UpdatedAt
+// 		WHERE Id = :Id`,
+// 		movie); err != nil {
+// 		return err
+// 	}
+
+// 	return nil
+// }
+
+func (s *SqlServerMoviesStore) Delete(ctx context.Context, jsonBody string) error {
 	err := s.connect(ctx)
 	if err != nil {
 		return err
 	}
 	defer s.close()
-
-	if _, err := s.dbx.ExecContext(
+	log.Printf("jsonBody: %v", jsonBody)
+	_, err = s.dbx.ExecContext(
 		ctx,
-		`DELETE FROM dbo.movies
-		WHERE id = @id`, sql.Named("id", id)); err != nil {
+		`EXEC dbo.d_movie @json = @json`,
+		sql.Named("json", jsonBody),
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "operation failed") {
+			return &RecordNotFoundError{err}
+		}
 		return err
 	}
-
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"dperkins/movies-api/store"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -135,58 +136,57 @@ func (mr *UpdateMovieRequest) Bind(r *http.Request) error {
 }
 
 func (s *Server) handleUpdateMovie(w http.ResponseWriter, r *http.Request) {
-	idParam := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idParam)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		render.Render(w, r, ErrBadRequest)
 		return
 	}
-	data := &UpdateMovieRequest{}
-	if err := render.Bind(r, data); err != nil {
-		render.Render(w, r, ErrBadRequest)
-		return
-	}
+	jsonString := string(body)
+	err = s.store.Update(r.Context(), jsonString)
 
-	updateMovieParams := store.UpdateMovieParams{
-		Title:       data.Title,
-		Director:    data.Director,
-		ReleaseDate: data.ReleaseDate,
-		TicketPrice: data.TicketPrice,
-	}
+	// idParam := chi.URLParam(r, "id")
+	// id, err := uuid.Parse(idParam)
+	// if err != nil {
+	// 	render.Render(w, r, ErrBadRequest)
+	// 	return
+	// }
+	// data := &UpdateMovieRequest{}
+	// if err := render.Bind(r, data); err != nil {
+	// 	render.Render(w, r, ErrBadRequest)
+	// 	return
+	// }
 
-	err = s.store.Update(r.Context(), id, updateMovieParams)
-	if err != nil {
-		var rnfErr *store.RecordNotFoundError
-		if errors.As(err, &rnfErr) {
-			render.Render(w, r, ErrNotFound)
-		} else {
-			render.Render(w, r, ErrInternalServerError)
-		}
-		return
-	}
+	// updateMovieParams := store.UpdateMovieParams{
+	// 	Title:       data.Title,
+	// 	Director:    data.Director,
+	// 	ReleaseDate: data.ReleaseDate,
+	// 	TicketPrice: data.TicketPrice,
+	// }
+
+	// err = s.store.Update(r.Context(), id, updateMovieParams)
+	// if err != nil {
+	// 	var rnfErr *store.RecordNotFoundError
+	// 	if errors.As(err, &rnfErr) {
+	// 		render.Render(w, r, ErrNotFound)
+	// 	} else {
+	// 		render.Render(w, r, ErrInternalServerError)
+	// 	}
+	// 	return
+	// }
 
 	w.WriteHeader(200)
 	w.Write(nil)
 }
 
 func (s *Server) handleDeleteMovie(w http.ResponseWriter, r *http.Request) {
-	idParam := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idParam)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		render.Render(w, r, ErrBadRequest)
 		return
 	}
-
-	err = s.store.Delete(r.Context(), id)
-	if err != nil {
-		var rnfErr *store.RecordNotFoundError
-		if errors.As(err, &rnfErr) {
-			render.Render(w, r, ErrNotFound)
-		} else {
-			render.Render(w, r, ErrInternalServerError)
-		}
-		return
-	}
+	jsonString := string(body)
+	log.Printf("jsonString: %v", jsonString)
+	err = s.store.Delete(r.Context(), jsonString)
 
 	w.WriteHeader(200)
 	w.Write(nil)

@@ -18,7 +18,7 @@ type Movie struct {
 }
 type MovieJson struct {
 	ID          uuid.UUID `db:"Id"`
-	Title       string    ``
+	Title       string
 	Director    string
 	ReleaseDate time.Time
 	TicketPrice float64
@@ -26,26 +26,10 @@ type MovieJson struct {
 	UpdatedAt   time.Time
 }
 
-type CreateMovieParams struct {
-	ID          uuid.UUID
-	Title       string
-	Director    string
-	ReleaseDate time.Time
-	TicketPrice float64
-}
-
-type UpdateMovieParams struct {
-	Title       string
-	Director    string
-	ReleaseDate time.Time
-	TicketPrice float64
-}
-
 type Interface interface {
 	GetAll(ctx context.Context) ([]Movie, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Movie, error)
-	//Create(ctx context.Context, createMovieParams CreateMovieParams) error
 	Create(ctx context.Context, jsonString string) error
-	Update(ctx context.Context, id uuid.UUID, updateMovieParams UpdateMovieParams) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	Update(ctx context.Context, jsonString string) error
+	Delete(ctx context.Context, jsonString string) error
 }
